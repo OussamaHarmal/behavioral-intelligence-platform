@@ -7,3 +7,6 @@ datasets/raw/*.csv
 datasets/raw/**/*.csv
 *.zip
 *.rar
+datasets/processed/*.csv
+datasets/features/*.csv
+*.csv
