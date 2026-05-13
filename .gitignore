@@ -3,3 +3,7 @@ __pycache__/
 .env
 node_modules/
 *.pyc
+datasets/raw/*.csv
+datasets/raw/**/*.csv
+*.zip
+*.rar
