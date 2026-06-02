@@ -1,0 +1,10 @@
+[
+  {
+    "total_users":1000,
+    "critical_users":652,
+    "high_risk_users":130,
+    "medium_risk_users":188,
+    "low_risk_users":30,
+    "total_alerts":782
+  }
+]

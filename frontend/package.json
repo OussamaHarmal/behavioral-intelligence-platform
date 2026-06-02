@@ -6,13 +6,13 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
+    "axios": "latest",
+    "framer-motion": "latest",
+    "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "axios": "latest",
-    "lucide-react": "latest",
+    "react-force-graph-2d": "^1.29.1",
     "recharts": "latest",
-    "framer-motion": "latest"
-  },
-  "devDependencies": {}
+    "vite": "latest"
+  }
 }

@@ -53,3 +53,29 @@ def load_phishing_model():
     vectorizer = joblib.load(vectorizer_path)
 
     return model, vectorizer
+
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DATASETS_DIR = BASE_DIR / "datasets"
+
+
+def load_profiles():
+
+    file_path = DATASETS_DIR / "features" / "user_behavior_profile.csv"
+
+    if not file_path.exists():
+        return pd.DataFrame()
+
+    return pd.read_csv(file_path)
+
+
+def load_cert_data():
+
+    file_path = DATASETS_DIR / "raw" / "email.csv"
+
+    if not file_path.exists():
+        return pd.DataFrame()
+
+    return pd.read_csv(file_path)

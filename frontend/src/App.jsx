@@ -1,4 +1,4 @@
-
+import ForceGraph2D from "react-force-graph-2d";
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
@@ -14,7 +14,6 @@ import {
   Sun,
   Target,
   Users,
-  BarChart3,
   FileText,
   Bell,
   Maximize2,
@@ -23,8 +22,6 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -34,7 +31,6 @@ import {
   Cell,
 } from "recharts";
 import { motion } from "framer-motion";
-
 const API = "http://127.0.0.1:8000";
 
 const trendData = [
@@ -58,10 +54,7 @@ const COLORS = ["#ff4d67", "#ff9f1c", "#22c55e", "#7565ff"];
 
 function StatCard({ icon: Icon, title, value, subtitle, tone }) {
   return (
-    <motion.div
-      whileHover={{ y: -6, scale: 1.01 }}
-      className={`stat-card ${tone}`}
-    >
+    <motion.div whileHover={{ y: -6, scale: 1.01 }} className={`stat-card ${tone}`}>
       <div className="stat-top">
         <div className="icon-bubble">
           <Icon size={24} />
@@ -83,6 +76,7 @@ function Sidebar({ active, setActive }) {
     ["Phishing AI", MailWarning],
     ["Reports", FileText],
     ["Settings", Settings],
+ 
   ];
 
   return (
@@ -143,6 +137,7 @@ function Topbar({ theme, setTheme }) {
       <button className="circle-btn">
         <Maximize2 size={18} />
       </button>
+
     </div>
   );
 }
@@ -259,32 +254,361 @@ function Overview({ kpis, alerts }) {
   );
 }
 
-function UsersPage({ users }) {
+function UsersPage() {
+  const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  useEffect(() => {
+    async function loadUsers() {
+      try {
+        const res = await axios.get(`${API}/alerts`);
+        setUsers(res.data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadUsers();
+  }, []);
+
   return (
     <div className="panel page-panel">
-      <h2>Suspicious Users</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Risk Level</th>
-            <th>Score</th>
-            <th>Anomaly</th>
-            <th>Explanation</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.slice(0, 15).map((u, i) => (
-            <tr key={i}>
-              <td>{u.user}</td>
-              <td><span className={`badge ${String(u.risk_level || "low").toLowerCase()}`}>{u.risk_level}</span></td>
-              <td>{Number(u.final_intelligence_score || 0).toFixed(2)}</td>
-              <td>{u.anomaly_status}</td>
-              <td>{u.investigation_explanation}</td>
+      <h2>Users Intelligence</h2>
+
+      <div className="table-wrap">
+        <table className="modern-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Risk Level</th>
+              <th>Score</th>
+              <th>Anomaly</th>
+              <th>Explanation</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+
+          <tbody>
+            {users.map((u, i) => (
+              <tr
+                key={i}
+                onClick={() => {
+                  console.log("clicked user =", u);
+                  setSelectedUser(u);
+                }}
+                style={{
+                  cursor: "pointer"
+                }}
+              >
+                <td>{u.user}</td>
+
+                <td>
+                  <span
+                    className={`badge ${String(
+                      u.risk_level || "LOW"
+                    ).toLowerCase()}`}
+                  >
+                    {u.risk_level}
+                  </span>
+                </td>
+
+                <td>
+                  {Number(
+                    u.final_intelligence_score || 0
+                  ).toFixed(2)}
+                </td>
+
+                <td>{u.anomaly_status}</td>
+
+                <td>
+                  {u.investigation_explanation}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {selectedUser && (
+          <div
+            style={{
+              marginTop: "24px",
+              padding: "20px",
+              borderRadius: "18px",
+              background: "#111827",
+              color: "#fff",
+              border: "1px solid #334155"
+            }}
+          >
+            <h3 style={{ marginBottom: "12px" }}>
+              AI Investigation
+            </h3>
+
+            <p>
+              <strong>User:</strong>{" "}
+              {selectedUser.user}
+            </p>
+
+            <p>
+              <strong>Risk:</strong>{" "}
+              {selectedUser.risk_level}
+            </p>
+
+            <p>
+              <strong>Score:</strong>{" "}
+              {Number(
+                selectedUser.final_intelligence_score || 0
+              ).toFixed(2)}
+            </p>
+
+            <p>
+              <strong>Anomaly:</strong>{" "}
+              {selectedUser.anomaly_status}
+            </p>
+
+            <p>
+              <strong>External Emails:</strong>{" "}
+              {selectedUser.external_emails}
+            </p>
+
+            <p>
+              <strong>Attachments:</strong>{" "}
+              {selectedUser.attachments_sent}
+            </p>
+
+            <p>
+              <strong>Night Activity:</strong>{" "}
+              {selectedUser.night_activity_count}
+            </p>
+
+            <p>
+              <strong>Explanation:</strong>{" "}
+              {selectedUser.investigation_explanation}
+            </p>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+function GraphPage() {
+  const [graph, setGraph] = useState({ nodes: [], links: [] });
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [riskFilter, setRiskFilter] = useState("ALL");
+  const [loading, setLoading] = useState(true);
+
+  const riskColors = {
+    CRITICAL: "#ff4d67",
+    HIGH: "#ff9f1c",
+    MEDIUM: "#facc15",
+    LOW: "#22c55e",
+  };
+
+  async function loadGraph() {
+    try {
+      setLoading(true);
+      const res = await axios.get(`${API}/graph?limit=25`);
+
+      setGraph({
+        nodes: res.data.nodes || [],
+        links: res.data.edges || [],
+      });
+    } catch (err) {
+      console.error("Graph loading error:", err);
+      setGraph({ nodes: [], links: [] });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadGraph();
+  }, []);
+
+  const filteredGraph = useMemo(() => {
+    if (riskFilter === "ALL") return graph;
+
+    const nodes = graph.nodes.filter((node) => node.risk === riskFilter);
+    const ids = new Set(nodes.map((node) => node.id));
+
+    const links = graph.links.filter((link) => {
+      const sourceId = typeof link.source === "object" ? link.source.id : link.source;
+      const targetId = typeof link.target === "object" ? link.target.id : link.target;
+
+      return ids.has(sourceId) && ids.has(targetId);
+    });
+
+    return { nodes, links };
+  }, [graph, riskFilter]);
+
+  const graphStats = useMemo(() => {
+    return {
+      totalNodes: graph.nodes.length,
+      totalLinks: graph.links.length,
+      critical: graph.nodes.filter((node) => node.risk === "CRITICAL").length,
+      high: graph.nodes.filter((node) => node.risk === "HIGH").length,
+      medium: graph.nodes.filter((node) => node.risk === "MEDIUM").length,
+      low: graph.nodes.filter((node) => node.risk === "LOW").length,
+    };
+  }, [graph]);
+
+  return (
+    <div className="panel page-panel">
+      <div className="panel-head">
+        <div>
+          <h2>Graph Intelligence</h2>
+          <p className="muted">
+            Real communication graph extracted from CERT email relations.
+          </p>
+        </div>
+
+        <button className="primary-btn" onClick={loadGraph}>
+          Refresh Graph
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(6, minmax(120px, 1fr))",
+          gap: "12px",
+          marginTop: "18px",
+          marginBottom: "18px",
+        }}
+      >
+        <div className="result-box">
+          <strong>Nodes</strong>
+          <h3>{graphStats.totalNodes}</h3>
+        </div>
+
+        <div className="result-box">
+          <strong>Relations</strong>
+          <h3>{graphStats.totalLinks}</h3>
+        </div>
+
+        <div className="result-box danger">
+          <strong>Critical</strong>
+          <h3>{graphStats.critical}</h3>
+        </div>
+
+        <div className="result-box">
+          <strong>High</strong>
+          <h3>{graphStats.high}</h3>
+        </div>
+
+        <div className="result-box">
+          <strong>Medium</strong>
+          <h3>{graphStats.medium}</h3>
+        </div>
+
+        <div className="result-box safe">
+          <strong>Low</strong>
+          <h3>{graphStats.low}</h3>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+          marginBottom: "16px",
+        }}
+      >
+        {["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"].map((risk) => (
+          <button
+            key={risk}
+            className="icon-btn"
+            onClick={() => setRiskFilter(risk)}
+            style={{
+              borderColor: riskFilter === risk ? riskColors[risk] || "#8b5cf6" : undefined,
+              color: riskFilter === risk ? riskColors[risk] || "#8b5cf6" : undefined,
+            }}
+          >
+            {risk}
+          </button>
+        ))}
+      </div>
+
+      {loading && (
+        <div className="api-warning">
+          Loading real communication graph from backend...
+        </div>
+      )}
+
+      <div
+        style={{
+          height: "650px",
+          marginTop: "20px",
+          borderRadius: "20px",
+          overflow: "hidden",
+          border: "1px solid rgba(148, 163, 184, 0.20)",
+        }}
+      >
+        <ForceGraph2D
+          graphData={filteredGraph}
+          nodeLabel={(node) =>
+            `${node.label}
+Risk: ${node.risk}
+Score: ${Number(node.score).toFixed(2)}`
+          }
+          nodeAutoColorBy="risk"
+          linkColor={() => "#38bdf8"}
+          linkWidth={2}
+          linkDirectionalParticles={3}
+          linkDirectionalParticleWidth={2}
+          linkDirectionalParticleSpeed={0.006}
+          onNodeClick={(node) => setSelectedNode(node)}
+          nodeCanvasObject={(node, ctx, globalScale) => {
+            const fontSize = 10 / globalScale;
+            const isSelected = selectedNode?.id === node.id;
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, isSelected ? 10 : 6, 0, 2 * Math.PI);
+
+            ctx.fillStyle = riskColors[node.risk] || "#22c55e";
+            ctx.fill();
+
+            if (isSelected) {
+              ctx.strokeStyle = "#ffffff";
+              ctx.lineWidth = 2.5;
+              ctx.stroke();
+            }
+
+            if (globalScale > 2.2 || isSelected) {
+              ctx.font = `${fontSize}px Sans-Serif`;
+              ctx.fillStyle = "white";
+              ctx.fillText(node.label, node.x + 8, node.y + 3);
+            }
+          }}
+          backgroundColor="#050816"
+        />
+      </div>
+
+      {selectedNode && (
+        <div className="result-box" style={{ marginTop: "20px" }}>
+          <h3>AI Investigation Node</h3>
+
+          <p>
+            <strong>User:</strong> {selectedNode.label}
+          </p>
+
+          <p>
+            <strong>Risk:</strong>{" "}
+            <span className={`badge ${String(selectedNode.risk || "low").toLowerCase()}`}>
+              {selectedNode.risk}
+            </span>
+          </p>
+
+          <p>
+            <strong>Score:</strong> {Number(selectedNode.score).toFixed(2)}
+          </p>
+
+          <p className="muted">
+            This node represents a real communication entity extracted from the CERT email network.
+            High-risk nodes may indicate suspicious hubs, unusual communication patterns, or potential insider threat behavior.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -308,6 +632,7 @@ function PhishingPage() {
       <p className="muted">Analyse un message et détecte s'il est suspect ou safe.</p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} />
       <button className="primary-btn" onClick={predict}>Analyse Message</button>
+
       {result && (
         <div className={`result-box ${result.prediction === "PHISHING" ? "danger" : "safe"}`}>
           <h3>{result.prediction}</h3>
@@ -364,21 +689,25 @@ export default function App() {
     if (active === "Overview") return <Overview kpis={kpis} alerts={alerts} />;
     if (active === "Alerts") return <RecentAlerts alerts={alerts} />;
     if (active === "Users") return <UsersPage users={users} />;
-    if (active === "Graph Intelligence") return <Placeholder title="Graph Intelligence" />;
+    if (active === "Graph Intelligence") return <GraphPage />;
     if (active === "Phishing AI") return <PhishingPage />;
+    if (active === "Users") return <UsersPage />;
     return <Placeholder title={active} />;
   }, [active, kpis, alerts, users]);
 
   return (
     <div className="app-shell">
       <Sidebar active={active} setActive={setActive} />
+
       <main className="main">
         <Topbar theme={theme} setTheme={setTheme} />
+
         {apiStatus === "offline" && (
           <div className="api-warning">
             Backend API not reachable. Start FastAPI with: uvicorn main:app --reload
           </div>
         )}
+
         {content}
       </main>
     </div>
