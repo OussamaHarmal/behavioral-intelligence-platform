@@ -1,9 +1,11 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+from kafka import KafkaProducer
 import cv2
 import csv
 import os
 import time
+import json
 from datetime import datetime
 
 router = APIRouter()
@@ -12,8 +14,14 @@ VIDEO_SOURCE = r"C:\Users\dell\Desktop\NeuroTrace_AI\backend\videos\shoplifting\
 VIDEO_LABEL = "SHOPLIFTING"
 
 LOG_FILE = r"C:\Users\dell\Desktop\NeuroTrace_AI\backend_ready\video_live_events.csv"
+KAFKA_TOPIC = "video-events"
 
 previous_gray = None
+
+producer = KafkaProducer(
+    bootstrap_servers="localhost:9092",
+    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+)
 
 
 def ensure_log_file():
@@ -31,6 +39,14 @@ def ensure_log_file():
                 "activity_level",
                 "risk_level"
             ])
+
+
+def send_to_kafka(event):
+    try:
+        producer.send(KAFKA_TOPIC, event)
+        producer.flush()
+    except Exception as e:
+        print("Kafka error:", e)
 
 
 def analyze_frame(frame, frame_index):
@@ -62,6 +78,7 @@ def analyze_frame(frame, frame_index):
 
     event = {
         "timestamp": datetime.now().isoformat(),
+        "source": "video-live-analytics",
         "video_label": VIDEO_LABEL,
         "frame_index": frame_index,
         "motion_score": round(motion_score, 2),
@@ -81,6 +98,8 @@ def analyze_frame(frame, frame_index):
             event["activity_level"],
             event["risk_level"]
         ])
+
+    send_to_kafka(event)
 
     return event
 
@@ -118,6 +137,7 @@ def generate_video_stream():
         event = analyze_frame(frame, frame_index)
 
         overlay_text = (
+            f"Kafka: ON | "
             f"Label: {VIDEO_LABEL} | "
             f"Risk: {event['risk_level']} | "
             f"Activity: {event['activity_level']} | "
@@ -131,7 +151,7 @@ def generate_video_stream():
             overlay_text,
             (30, 40),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.75,
+            0.65,
             color,
             2
         )
@@ -159,7 +179,8 @@ def video_live_analytics():
         generate_video_stream(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
-    
+
+
 @router.get("/video/events")
 def get_video_events(limit: int = 20):
     ensure_log_file()
@@ -189,17 +210,18 @@ def get_video_summary():
         return {
             "total_events": 0,
             "latest_risk": "UNKNOWN",
+            "latest_activity": "UNKNOWN",
             "high_risk_events": 0,
             "average_motion": 0
         }
 
     high_risk_events = [
-        e for e in events
-        if e["risk_level"] == "HIGH"
+        event for event in events
+        if event["risk_level"] == "HIGH"
     ]
 
     avg_motion = sum(
-        float(e["motion_score"]) for e in events
+        float(event["motion_score"]) for event in events
     ) / len(events)
 
     return {
