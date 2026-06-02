@@ -4,12 +4,14 @@ from models_loader import load_phishing_model
 from data_loader import load_alerts, load_kpis, load_profiles
 from fastapi.middleware.cors import CORSMiddleware
 from data_loader import load_profiles, load_cert_data
-
+from routes.video_live_analytics import router as video_live_router
 app = FastAPI(
     title="NeuroTrace AI API",
     description="AI Behavioral Intelligence and Investigation Backend",
     version="1.0.0"
 )
+app.include_router(video_live_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -156,7 +158,7 @@ def get_graph(limit: int = 100):
     
     
 @app.get("/alerts")
-def get_alerts():
+def get_alerts(limit: int = 25):
 
     profiles = load_profiles()
 
@@ -167,19 +169,34 @@ def get_alerts():
 
     for _, row in profiles.iterrows():
 
+        score = float(row["user_risk_score"])
+
+        if score >= 20:
+            risk_level = "HIGH"
+            alert_type = "HIGH_RISK_USER"
+        elif score >= 10:
+            risk_level = "MEDIUM"
+            alert_type = "SUSPICIOUS_ACTIVITY"
+        else:
+            risk_level = "LOW"
+            alert_type = "USER_MONITORING"
+
         alerts.append({
             "user": row["user"],
-
-            "risk": row["risk_level"],
-
-            "score": round(
-                float(row["final_intelligence_score"]),
-                2
-            ),
-
-            "anomaly": row["anomaly_status"],
-
-            "explanation": row["investigation_explanation"]
+            "alert_type": alert_type,
+            "risk": risk_level,
+            "severity": risk_level,
+            "score": round(score, 2),
+            "night_activity": int(row["night_emails"]),
+            "external_emails": int(row["external_to_count"]),
+            "attachments": int(row["attachment_count"]),
+            "risky_attachments": int(row["attachment_risk_count"]),
+            "explanation": (
+                f"Risk score {round(score, 2)} based on behavioral indicators. "
+                f"External emails: {int(row['external_to_count'])}, "
+                f"attachments: {int(row['attachment_count'])}, "
+                f"risky attachments: {int(row['attachment_risk_count'])}."
+            )
         })
 
     alerts.sort(
@@ -187,42 +204,59 @@ def get_alerts():
         reverse=True
     )
 
-    return alerts[:25]
+    return alerts[:limit]
+
 
 @app.get("/investigate/{user_id}")
 def investigate_user(user_id: str):
 
     profiles = load_profiles()
 
+    if profiles.empty:
+        return {
+            "message": "No user profiles found."
+        }
+
     user = profiles[
-        profiles["user"] == user_id
+        profiles["user"].astype(str) == str(user_id)
     ]
 
     if user.empty:
-        return {"message": "User not found"}
+        return {
+            "message": "User not found"
+        }
 
     row = user.iloc[0]
 
+    score = float(row["user_risk_score"])
+
+    if score >= 20:
+        risk_level = "HIGH"
+    elif score >= 10:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+
     return {
         "user": row["user"],
+        "risk_level": risk_level,
+        "score": round(score, 2),
 
-        "risk_level": row["risk_level"],
+        "total_emails": int(row["total_emails"]),
+        "night_emails": int(row["night_emails"]),
 
-        "score": row["final_intelligence_score"],
+        "external_to_count": int(row["external_to_count"]),
+        "external_cc_count": int(row["external_cc_count"]),
+        "external_bcc_count": int(row["external_bcc_count"]),
 
-        "anomaly": row["anomaly_status"],
-
-        "night_activity": row["night_activity_count"],
-
-        "external_emails": row["external_emails"],
-
-        "attachments": row["attachments_sent"],
+        "attachments": int(row["attachment_count"]),
+        "risky_attachments": int(row["attachment_risk_count"]),
 
         "explanation":
-            row["investigation_explanation"],
+            f"Risk score {round(score,2)} based on user behavior analysis.",
 
         "recommendation":
             "Immediate review required"
-            if row["risk_level"] == "CRITICAL"
+            if risk_level == "HIGH"
             else "Monitor activity"
     }

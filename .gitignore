@@ -10,3 +10,5 @@ datasets/raw/**/*.csv
 datasets/processed/*.csv
 datasets/features/*.csv
 *.csv
+
+backend/videos/
